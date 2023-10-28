@@ -1,66 +1,43 @@
 import asyncio
 import curses
 import time
-from typing import Final, Optional
-from random import choice, random, randint
+from random import choice, randint
+from typing import Final
 
-STAR_SYM: Final[str] = "*"
 STAR_SYMBOLS: Final[list[str]] = ["+", "*", ".", ":"]
 STARS: Final[int] = 600
 TIC_TIMEOUT = 0.1
 
 
-def draw_sym(
-    canvas,
-    row: int,
-    col: int,
-    delay: float,
-    effect: int = 0,
-    sym: str = STAR_SYM,
-):
-    canvas.addstr(row, col, sym, effect)
-    canvas.refresh()
-    time.sleep(delay)
-
-
-async def blink(canvas, row, column, symbol="*"):
+async def blink(canvas, row: int, col: int, symbol: str = "*"):
     while True:
-        canvas.addstr(row, column, symbol, curses.A_DIM)
+        canvas.addstr(row, col, symbol, curses.A_DIM)
         await asyncio.sleep(0)
         for _ in range(20):
             await asyncio.sleep(0)
 
-        canvas.addstr(row, column, symbol)
+        canvas.addstr(row, col, symbol)
         await asyncio.sleep(0)
         for _ in range(3):
             await asyncio.sleep(0)
 
-        canvas.addstr(row, column, symbol, curses.A_BOLD)
+        canvas.addstr(row, col, symbol, curses.A_BOLD)
         await asyncio.sleep(0)
         for _ in range(5):
             await asyncio.sleep(0)
 
-        canvas.addstr(row, column, symbol)
+        canvas.addstr(row, col, symbol)
         await asyncio.sleep(0)
         for _ in range(3):
             await asyncio.sleep(0)
 
 
-def main(canvas):
-    canvas.border()
-    row, column = (3, 9)
-    # canvas.addstr(row, column, "Pipa!")
-    curses.curs_set(False)
-    canvas.refresh()
-    blind(canvas)
+def get_row(max_: int):
+    return randint(0, max_ - 1)
 
 
-def get_row(max: int):
-    return randint(0, max - 1)
-
-
-def get_col(max: int):
-    return randint(0, max - 1)
+def get_col(max_: int):
+    return randint(0, max_ - 1)
 
 
 def draw(canvas):
