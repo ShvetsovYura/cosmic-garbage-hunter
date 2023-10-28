@@ -105,6 +105,42 @@ async def animate_spaceship(canvas: window, row: float, col: float) -> None:
         draw_frame(canvas, row, col, frame, negative=True)
 
 
+async def fire(
+    canvas,
+    start_row: float,
+    start_col: float,
+    row_delta: float = -0.3,
+    col_delta: float = 0.0,
+) -> None:
+    row, col = start_row, start_col
+    canvas.addstr(round(row), round(col), "*")
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(col), "O")
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(col), " ")
+    await asyncio.sleep(0)
+
+    row += row_delta
+    col += col_delta
+
+    sym = "-" if col_delta else "|"
+
+    rows, cols = canvas.getmaxyx()
+    max_row, max_col = rows - 1, cols - 1
+
+    curses.beep()
+
+    while 0 < row < max_row and 0 < col < max_col:
+        canvas.addstr(round(row), round(col), sym)
+        await asyncio.sleep(0)
+        canvas.addstr(round(row), round(col), " ")
+        await asyncio.sleep(0)
+        row += row_delta
+        col += col_delta
+
+
 def get_row(max_: int):
     return randint(0, max_ - 1)
 
@@ -121,10 +157,14 @@ def draw(canvas: window):
         for _ in range(STARS)
     ]
     coros.append(animate_spaceship(canvas, curses.LINES // 2, curses.COLS // 2))
+    coros.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
     while True:
         for coro in coros.copy():
-            coro.send(None)
-            canvas.refresh()
+            try:
+                coro.send(None)
+                canvas.refresh()
+            except StopIteration:
+                coros.remove(coro)
         time.sleep(TIC_TIMEOUT)
 
 
