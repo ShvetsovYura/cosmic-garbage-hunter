@@ -5,12 +5,15 @@ from random import choice, randint
 from typing import Final
 
 STAR_SYMBOLS: Final[list[str]] = ["+", "*", ".", ":"]
-STARS: Final[int] = 600
+STARS: Final[int] = 400
 TIC_TIMEOUT = 0.1
 
 
 async def blink(canvas, row: int, col: int, symbol: str = "*"):
     while True:
+        for _ in range(randint(1, 10)):
+            await asyncio.sleep(0)
+
         canvas.addstr(row, col, symbol, curses.A_DIM)
         await asyncio.sleep(0)
         for _ in range(20):
@@ -31,6 +34,8 @@ async def blink(canvas, row: int, col: int, symbol: str = "*"):
         for _ in range(3):
             await asyncio.sleep(0)
 
+        for _ in range(randint(10, 100)):
+            await asyncio.sleep(0)
 
 def get_row(max_: int):
     return randint(0, max_ - 1)
