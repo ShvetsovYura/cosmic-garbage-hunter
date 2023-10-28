@@ -37,6 +37,43 @@ async def blink(canvas, row: int, col: int, symbol: str = "*"):
         for _ in range(randint(10, 100)):
             await asyncio.sleep(0)
 
+
+async def fire(
+    canvas,
+    start_row: float,
+    start_col: float,
+    row_delta: float = -0.3,
+    col_delta: float = 0.0,
+) -> None:
+    row, col = start_row, start_col
+    canvas.addstr(round(row), round(col), "*")
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(col), "O")
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(col), " ")
+    await asyncio.sleep(0)
+
+    row += row_delta
+    col += col_delta
+
+    sym = "-" if col_delta else "|"
+
+    rows, cols = canvas.getmaxyx()
+    max_row, max_col = rows - 1, cols - 1
+
+    curses.beep()
+
+    while 0 < row < max_row and 0 < col < max_col:
+        canvas.addstr(round(row), round(col), sym)
+        await asyncio.sleep(0)
+        canvas.addstr(round(row), round(col), " ")
+        await asyncio.sleep(0)
+        row += row_delta
+        col += col_delta
+
+
 def get_row(max_: int):
     return randint(0, max_ - 1)
 
@@ -51,10 +88,14 @@ def draw(canvas):
         blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS))
         for _ in range(STARS)
     ]
+    coros.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
     while True:
         for coro in coros.copy():
-            coro.send(None)
-            canvas.refresh()
+            try:
+                coro.send(None)
+                canvas.refresh()
+            except StopIteration:
+                coros.remove(coro)
         time.sleep(TIC_TIMEOUT)
 
 
