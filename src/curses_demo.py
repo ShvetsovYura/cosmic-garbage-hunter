@@ -6,13 +6,19 @@ import time
 from curses import window
 from pathlib import Path
 from random import choice, randint
-from typing import Final
+from typing import Any, Final
 
 STAR_SYMBOLS: Final[list[str]] = ['+', '*', '.', ':']
 STARS: Final[int] = 200
 TIC_TIMEOUT = 0.1
-spacesheep_frames: list[str] = []
-spacesheep_frames_path = Path(__file__).parent.resolve() / 'sprites/spacesheep'
+
+base_path = Path(__file__).parent.resolve()
+
+sprites: dict[str, dict[str, Any]] = {
+    'ship': {'path': base_path.joinpath('sprites/spacesheep'), 'sprites': {}},
+    'garbage': {'path': base_path.joinpath('sprites/garbage'), 'sprites': {}},
+}
+
 CURRENT_SHIP_FRAME: str | None = None
 
 SPACE_KEY_CODE = 32
@@ -24,18 +30,36 @@ DOWN_KEY_CODE = 258
 SHIP_ROW: float = 0
 SHIP_COL: float = 0
 
-STEP_DELTA = 10
+STEP_DELTA = 5
 
 
-def read_sprites() -> None:
-    if not spacesheep_frames_path.exists():
-        raise FileNotFoundError(spacesheep_frames_path)
-    for _, _, filenames in os.walk(spacesheep_frames_path):
-        for filename in filenames:
-            file_ = spacesheep_frames_path.joinpath(filename)
-            if file_.exists() and file_.is_file():
-                with open(file_, mode='r', encoding='utf-8') as frame:
-                    spacesheep_frames.append(frame.read())
+async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
+    """Animate garbage, flying from top to bottom. Сolumn position will stay same, as specified on start."""
+    rows_number, columns_number = canvas.getmaxyx()
+
+    column = max(column, 0)
+    column = min(column, columns_number - 1)
+
+    row: float = 0
+
+    while row < rows_number:
+        draw_frame(canvas, row, column, garbage_frame)
+        await asyncio.sleep(0)
+        draw_frame(canvas, row, column, garbage_frame, negative=True)
+        row += speed
+
+
+def read_all_sprites() -> None:
+    for _, sprites_val in sprites.items():
+        if not sprites_val['path'].exists():
+            raise FileNotFoundError(sprites_val['path'])
+        for _, _, filenames in os.walk(sprites_val['path']):
+            for filename in filenames:
+                fn, _ = filename.split('.')
+                file_ = sprites_val['path'].joinpath(filename)
+                if file_.exists() and file_.is_file():
+                    with open(file_, mode='r', encoding='utf-8') as frame:
+                        sprites_val['sprites'][fn] = frame.read()
 
 
 def read_controls(canvas: window) -> tuple[int, int, bool]:
@@ -143,7 +167,7 @@ async def delay(count: int) -> None:
 
 async def animate_spaceship() -> None:
     global CURRENT_SHIP_FRAME
-    for frame in itertools.cycle(spacesheep_frames):
+    for frame in itertools.cycle(sprites['ship']['sprites'].values()):
         CURRENT_SHIP_FRAME = frame
         await delay(2)
 
@@ -225,21 +249,23 @@ def draw(canvas: window) -> None:
     coros = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
     global SHIP_ROW, SHIP_COL
     SHIP_ROW, SHIP_COL = curses.LINES // 2, curses.COLS // 2
+
     coros.append(animate_spaceship())
     coros.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
     coros.append(move_ship(canvas))
+    coros.append(fly_garbage(canvas, 10, sprites['garbage']['sprites']['duck']))
+
     while True:
         for coro in coros.copy():
             try:
                 coro.send(None)
-                canvas.refresh()
-
             except StopIteration:
                 coros.remove(coro)
+        canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
 
 if __name__ == '__main__':
-    read_sprites()
+    read_all_sprites()
     curses.update_lines_cols()
     curses.wrapper(draw)
