@@ -197,6 +197,10 @@ def get_frame_size(text: str) -> tuple[int, int]:
     return rows, columns
 
 
+def new_position(max_pos: int, frame_size: int, cur_pos: float, delta: int) -> int:
+    return max(0, min(max_pos - frame_size, int(cur_pos) + delta))
+
+
 async def move_ship(canvas: window) -> None:
     global SHIP_ROW, SHIP_COL
 
@@ -206,24 +210,8 @@ async def move_ship(canvas: window) -> None:
             if row_direction or col_direction:
                 max_rows, max_cols = canvas.getmaxyx()
                 frame_rows, frame_cols = get_frame_size(CURRENT_SHIP_FRAME)
-
-                if col_direction > 0:
-                    next_right_pos = SHIP_COL + frame_cols + STEP_DELTA
-                    if next_right_pos >= max_cols:
-                        SHIP_COL = max_cols - frame_cols
-                    else:
-                        SHIP_COL = SHIP_COL + STEP_DELTA
-                elif col_direction < 0:
-                    SHIP_COL = max(0, SHIP_COL - STEP_DELTA)
-
-                if row_direction > 0:
-                    next_down_pos = SHIP_ROW + frame_rows + STEP_DELTA
-                    if next_down_pos >= max_rows:
-                        SHIP_ROW = max_rows - frame_rows
-                    else:
-                        SHIP_ROW = SHIP_ROW + STEP_DELTA
-                elif row_direction < 0:
-                    SHIP_ROW = max(0, SHIP_ROW - STEP_DELTA)
+                SHIP_COL = new_position(max_cols, frame_cols, SHIP_COL, (STEP_DELTA * col_direction))
+                SHIP_ROW = new_position(max_rows, frame_rows, SHIP_ROW, (STEP_DELTA * row_direction))
 
             draw_frame(canvas, SHIP_ROW, SHIP_COL, CURRENT_SHIP_FRAME)
             prev_frame = CURRENT_SHIP_FRAME
