@@ -13,6 +13,16 @@ STARS: Final[int] = 200
 TIC_TIMEOUT = 0.1
 spacesheep_frames: list[str] = []
 spacesheep_frames_path = Path(__file__).parent.resolve() / 'sprites/spacesheep'
+CURRENT_SHIP_FRAME: str | None = None
+
+SPACE_KEY_CODE = 32
+LEFT_KEY_CODE = 260
+RIGHT_KEY_CODE = 261
+UP_KEY_CODE = 259
+DOWN_KEY_CODE = 258
+
+SHIP_ROW: float = 0
+SHIP_COL: float = 0
 
 
 def read_sprites() -> None:
@@ -24,6 +34,37 @@ def read_sprites() -> None:
             if file_.exists() and file_.is_file():
                 with open(file_, mode='r', encoding='utf-8') as frame:
                     spacesheep_frames.append(frame.read())
+
+
+def read_controls(canvas: window) -> tuple[int, int, bool]:
+    """Read keys pressed and returns tuple witl controls state."""
+
+    rows_direction = columns_direction = 0
+    space_pressed = False
+
+    while True:
+        pressed_key_code = canvas.getch()
+
+        if pressed_key_code == -1:
+            # https://docs.python.org/3/library/curses.html#curses.window.getch
+            break
+
+        if pressed_key_code == UP_KEY_CODE:
+            rows_direction = -1
+
+        if pressed_key_code == DOWN_KEY_CODE:
+            rows_direction = 1
+
+        if pressed_key_code == RIGHT_KEY_CODE:
+            columns_direction = 1
+
+        if pressed_key_code == LEFT_KEY_CODE:
+            columns_direction = -1
+
+        if pressed_key_code == SPACE_KEY_CODE:
+            space_pressed = True
+
+    return rows_direction, columns_direction, space_pressed
 
 
 async def blink(canvas: window, row: int, col: int, symbol: str = '*') -> None:
@@ -51,7 +92,7 @@ async def blink(canvas: window, row: int, col: int, symbol: str = '*') -> None:
         for _ in range(3):
             await asyncio.sleep(0)
 
-        for _ in range(randint(10, 100)):
+        for _ in range(randint(1, 100)):
             await asyncio.sleep(0)
 
 
@@ -98,11 +139,11 @@ async def delay(count: int) -> None:
         await asyncio.sleep(0)
 
 
-async def animate_spaceship(canvas: window, row: float, col: float) -> None:
+async def animate_spaceship() -> None:
+    global CURRENT_SHIP_FRAME
     for frame in itertools.cycle(spacesheep_frames):
-        draw_frame(canvas, row, col, frame)
+        CURRENT_SHIP_FRAME = frame
         await delay(2)
-        draw_frame(canvas, row, col, frame, negative=True)
 
 
 async def fire(
@@ -145,17 +186,37 @@ def get_col(max_: int) -> int:
     return randint(0, max_ - 1)
 
 
+async def move_ship(canvas: window) -> None:
+    global SHIP_ROW, SHIP_COL
+
+    while True:
+        row_direction, col_direction, _ = read_controls(canvas)
+
+        SHIP_ROW = SHIP_ROW + row_direction
+
+        SHIP_COL = SHIP_COL + col_direction
+        if CURRENT_SHIP_FRAME:
+            draw_frame(canvas, SHIP_ROW, SHIP_COL, CURRENT_SHIP_FRAME)
+            prev_frame = CURRENT_SHIP_FRAME
+            await asyncio.sleep(0)
+            draw_frame(canvas, SHIP_ROW, SHIP_COL, prev_frame, negative=True)
+
+
 def draw(canvas: window) -> None:
-    curses.curs_set(False)
-    # coros = []
+    curses.curs_set(False)  # убрать курсор, чтобы не мешал
+    canvas.nodelay(True)  # неблокриующий ражим
     coros = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
-    coros.append(animate_spaceship(canvas, curses.LINES // 2, curses.COLS // 2))
+    global SHIP_ROW, SHIP_COL
+    SHIP_ROW, SHIP_COL = curses.LINES // 2, curses.COLS // 2
+    coros.append(animate_spaceship())
     coros.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
+    coros.append(move_ship(canvas))
     while True:
         for coro in coros.copy():
             try:
                 coro.send(None)
                 canvas.refresh()
+
             except StopIteration:
                 coros.remove(coro)
         time.sleep(TIC_TIMEOUT)
