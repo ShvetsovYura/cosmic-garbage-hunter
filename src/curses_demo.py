@@ -24,6 +24,8 @@ DOWN_KEY_CODE = 258
 SHIP_ROW: float = 0
 SHIP_COL: float = 0
 
+STEP_DELTA = 10
+
 
 def read_sprites() -> None:
     if not spacesheep_frames_path.exists():
@@ -186,16 +188,43 @@ def get_col(max_: int) -> int:
     return randint(0, max_ - 1)
 
 
+def get_frame_size(text: str) -> tuple[int, int]:
+    """Calculate size of multiline text fragment, return pair — number of rows and colums."""
+
+    lines = text.splitlines()
+    rows = len(lines)
+    columns = max([len(line) for line in lines])  # pylint:disable=R1728
+    return rows, columns
+
+
 async def move_ship(canvas: window) -> None:
     global SHIP_ROW, SHIP_COL
 
     while True:
         row_direction, col_direction, _ = read_controls(canvas)
-
-        SHIP_ROW = SHIP_ROW + row_direction
-
-        SHIP_COL = SHIP_COL + col_direction
         if CURRENT_SHIP_FRAME:
+            if row_direction or col_direction:
+                max_rows, max_cols = canvas.getmaxyx()
+                frame_rows, frame_cols = get_frame_size(CURRENT_SHIP_FRAME)
+
+                if col_direction > 0:
+                    next_right_pos = SHIP_COL + frame_cols + STEP_DELTA
+                    if next_right_pos >= max_cols:
+                        SHIP_COL = max_cols - frame_cols
+                    else:
+                        SHIP_COL = SHIP_COL + STEP_DELTA
+                elif col_direction < 0:
+                    SHIP_COL = max(0, SHIP_COL - STEP_DELTA)
+
+                if row_direction > 0:
+                    next_down_pos = SHIP_ROW + frame_rows + STEP_DELTA
+                    if next_down_pos >= max_rows:
+                        SHIP_ROW = max_rows - frame_rows
+                    else:
+                        SHIP_ROW = SHIP_ROW + STEP_DELTA
+                elif row_direction < 0:
+                    SHIP_ROW = max(0, SHIP_ROW - STEP_DELTA)
+
             draw_frame(canvas, SHIP_ROW, SHIP_COL, CURRENT_SHIP_FRAME)
             prev_frame = CURRENT_SHIP_FRAME
             await asyncio.sleep(0)
