@@ -1,20 +1,23 @@
 import asyncio
 import curses
 import itertools
-import os
 import time
 from curses import window
 from pathlib import Path
 from random import choice, randint
-from typing import Any, Final
+from typing import Any, Coroutine, Final
+
+from . import utils
 
 STAR_SYMBOLS: Final[list[str]] = ['+', '*', '.', ':']
-STARS: Final[int] = 200
+STARS: Final[int] = 600
 TIC_TIMEOUT = 0.1
+COROS: list[Coroutine[Any, Any, None]] = []
 
 base_path = Path(__file__).parent.resolve()
 
-sprites: dict[str, dict[str, Any]] = {
+
+SPRITES: dict[str, dict[str, Any]] = {
     'ship': {'path': base_path.joinpath('sprites/spacesheep'), 'sprites': {}},
     'garbage': {'path': base_path.joinpath('sprites/garbage'), 'sprites': {}},
 }
@@ -33,6 +36,11 @@ SHIP_COL: float = 0
 STEP_DELTA = 5
 
 
+async def delay(tiks: int = 0) -> None:
+    for _ in range(tiks):
+        await asyncio.sleep(0)
+
+
 async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
     """Animate garbage, flying from top to bottom. Сolumn position will stay same, as specified on start."""
     rows_number, columns_number = canvas.getmaxyx()
@@ -47,19 +55,6 @@ async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: fl
         await asyncio.sleep(0)
         draw_frame(canvas, row, column, garbage_frame, negative=True)
         row += speed
-
-
-def read_all_sprites() -> None:
-    for _, sprites_val in sprites.items():
-        if not sprites_val['path'].exists():
-            raise FileNotFoundError(sprites_val['path'])
-        for _, _, filenames in os.walk(sprites_val['path']):
-            for filename in filenames:
-                fn, _ = filename.split('.')
-                file_ = sprites_val['path'].joinpath(filename)
-                if file_.exists() and file_.is_file():
-                    with open(file_, mode='r', encoding='utf-8') as frame:
-                        sprites_val['sprites'][fn] = frame.read()
 
 
 def read_controls(canvas: window) -> tuple[int, int, bool]:
@@ -95,31 +90,38 @@ def read_controls(canvas: window) -> tuple[int, int, bool]:
 
 async def blink(canvas: window, row: int, col: int, symbol: str = '*') -> None:
     while True:
-        for _ in range(randint(1, 10)):
-            await asyncio.sleep(0)
-
         canvas.addstr(row, col, symbol, curses.A_DIM)
-        await asyncio.sleep(0)
-        for _ in range(20):
-            await asyncio.sleep(0)
+        await delay(20)
 
         canvas.addstr(row, col, symbol)
-        await asyncio.sleep(0)
-        for _ in range(3):
-            await asyncio.sleep(0)
+        await delay(3)
 
         canvas.addstr(row, col, symbol, curses.A_BOLD)
-        await asyncio.sleep(0)
-        for _ in range(5):
-            await asyncio.sleep(0)
+        await delay(5)
 
         canvas.addstr(row, col, symbol)
-        await asyncio.sleep(0)
-        for _ in range(3):
-            await asyncio.sleep(0)
+        await delay(3)
 
-        for _ in range(randint(1, 100)):
-            await asyncio.sleep(0)
+        await delay(randint(1, 50))
+
+
+def get_random_garbage() -> str:
+    garbage_names: list[str] = list(SPRITES['garbage']['sprites'].keys())
+    garbage_name = choice(garbage_names)
+    fig: str = SPRITES['garbage']['sprites'][garbage_name]
+    return fig
+
+
+async def fill_orbit_with_garbage(canvas: window) -> None:
+    # TODO: Сделать так, чтобы при большом количестве объектов
+    # они не накладывались друг на друга
+    while True:
+        fig = get_random_garbage()
+        _, max_cols = canvas.getmaxyx()
+        _, fig_cols = get_frame_size(fig)
+        col_position = randint(0, max_cols - fig_cols)
+        COROS.append(fly_garbage(canvas, col_position, fig))
+        await delay(randint(1, 30))
 
 
 def draw_frame(
@@ -160,14 +162,9 @@ def draw_frame(
             canvas.addch(row, column, symbol)
 
 
-async def delay(count: int) -> None:
-    for _ in range(count):
-        await asyncio.sleep(0)
-
-
 async def animate_spaceship() -> None:
     global CURRENT_SHIP_FRAME
-    for frame in itertools.cycle(sprites['ship']['sprites'].values()):
+    for frame in itertools.cycle(SPRITES['ship']['sprites'].values()):
         CURRENT_SHIP_FRAME = frame
         await delay(2)
 
@@ -177,13 +174,13 @@ async def fire(
 ) -> None:
     row, col = start_row, start_col
     canvas.addstr(round(row), round(col), '*')
-    await asyncio.sleep(0)
+    await delay(0)
 
     canvas.addstr(round(row), round(col), 'O')
-    await asyncio.sleep(0)
+    await delay(0)
 
     canvas.addstr(round(row), round(col), ' ')
-    await asyncio.sleep(0)
+    await delay(0)
 
     row += row_delta
     col += col_delta
@@ -197,9 +194,9 @@ async def fire(
 
     while 0 < row < max_row and 0 < col < max_col:
         canvas.addstr(round(row), round(col), sym)
-        await asyncio.sleep(0)
+        await delay(0)
         canvas.addstr(round(row), round(col), ' ')
-        await asyncio.sleep(0)
+        await delay(0)
         row += row_delta
         col += col_delta
 
@@ -244,28 +241,30 @@ async def move_ship(canvas: window) -> None:
 
 
 def draw(canvas: window) -> None:
+    global COROS, SHIP_ROW, SHIP_COL
+
     curses.curs_set(False)  # убрать курсор, чтобы не мешал
     canvas.nodelay(True)  # неблокриующий ражим
-    coros = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
-    global SHIP_ROW, SHIP_COL
+    COROS = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
     SHIP_ROW, SHIP_COL = curses.LINES // 2, curses.COLS // 2
 
-    coros.append(animate_spaceship())
-    coros.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
-    coros.append(move_ship(canvas))
-    coros.append(fly_garbage(canvas, 10, sprites['garbage']['sprites']['duck']))
+    COROS.append(fill_orbit_with_garbage(canvas))
+    COROS.append(animate_spaceship())
+    COROS.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
+    COROS.append(move_ship(canvas))
+    COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
 
     while True:
-        for coro in coros.copy():
+        for coro in COROS.copy():
             try:
                 coro.send(None)
             except StopIteration:
-                coros.remove(coro)
+                COROS.remove(coro)
         canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
 
 if __name__ == '__main__':
-    read_all_sprites()
+    utils.load_all_sprites(SPRITES)
     curses.update_lines_cols()
     curses.wrapper(draw)
