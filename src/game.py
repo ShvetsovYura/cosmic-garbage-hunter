@@ -166,17 +166,17 @@ async def animate_spaceship() -> None:
 
 
 async def fire(
-    canvas: window, start_row: float, start_col: float, row_delta: float = -0.3, col_delta: float = 0.0
+    canvas: window, start_row: float, start_col: float, row_delta: float = -0.9, col_delta: float = 0.0
 ) -> None:
     row, col = start_row, start_col
     canvas.addstr(round(row), round(col), '*')
-    await utils.delay(0)
+    await asyncio.sleep(0)
 
     canvas.addstr(round(row), round(col), 'O')
-    await utils.delay(0)
+    await asyncio.sleep(0)
 
     canvas.addstr(round(row), round(col), ' ')
-    await utils.delay(0)
+    await asyncio.sleep(0)
 
     row += row_delta
     col += col_delta
@@ -190,9 +190,9 @@ async def fire(
 
     while 0 < row < max_row and 0 < col < max_col:
         canvas.addstr(round(row), round(col), sym)
-        await utils.delay(0)
+        await asyncio.sleep(0)
         canvas.addstr(round(row), round(col), ' ')
-        await utils.delay(0)
+        await asyncio.sleep(0)
         row += row_delta
         col += col_delta
 
@@ -224,9 +224,13 @@ async def move_ship(canvas: window) -> None:
     row_speed = 0.0
     max_rows, max_cols = canvas.getmaxyx()
     while True:
-        row_direction, col_direction, _ = read_controls(canvas)
+        row_direction, col_direction, is_space = read_controls(canvas)
         if not CURRENT_SHIP_FRAME:
             continue
+        _, ship_cols = get_frame_size(CURRENT_SHIP_FRAME)
+        if is_space:
+            COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
+
         frame_rows, frame_cols = get_frame_size(CURRENT_SHIP_FRAME)
 
         row_speed, col_speed = physics.update_speed(
@@ -254,7 +258,7 @@ def draw(canvas: window) -> None:
 
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
-    COROS.append(fire(canvas, start_row=curses.LINES // 2, start_col=curses.COLS // 2))
+    COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
     COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
 
