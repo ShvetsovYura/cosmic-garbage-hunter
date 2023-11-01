@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Any
 
@@ -13,3 +14,8 @@ def load_all_sprites(sprites: dict[str, dict[str, Any]]) -> None:
                 if file_.exists() and file_.is_file():
                     with open(file_, mode='r', encoding='utf-8') as frame:
                         sprites_val['sprites'][fn] = frame.read()
+
+
+async def delay(tiks: int = 0) -> None:
+    for _ in range(tiks):
+        await asyncio.sleep(0)
