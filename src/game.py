@@ -35,8 +35,7 @@ SHIP_ROW: float = 0
 SHIP_COL: float = 0
 
 STEP_DELTA: Final[float] = 1.6
-
-OBSTACLES: list[Any] = []
+OBSTACLES: list[obstacles.Obstacle] = []
 
 
 async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
@@ -167,7 +166,7 @@ async def move_ship(canvas: window) -> None:
             continue
         _, ship_cols = get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
-            COROS.append(curses_tools.fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
+            COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
 
         frame_rows, frame_cols = get_frame_size(CURRENT_SHIP_FRAME)
 
@@ -196,7 +195,7 @@ def draw(canvas: window) -> None:
 
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
-    COROS.append(curses_tools.fire(canvas, curses.LINES // 2, curses.COLS // 2))
+    COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
     COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
     COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
@@ -217,3 +216,40 @@ def main() -> None:
     utils.load_all_sprites(SPRITES)
     curses.update_lines_cols()
     curses.wrapper(draw)
+
+
+async def fire(
+    canvas: window, start_row: float, start_col: float, row_delta: float = -0.9, col_delta: float = 0.0
+) -> None:
+    row, col = start_row, start_col
+    canvas.addstr(round(row), round(col), '*')
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(col), 'O')
+    await asyncio.sleep(0)
+
+    canvas.addstr(round(row), round(col), ' ')
+    await asyncio.sleep(0)
+
+    row += row_delta
+    col += col_delta
+
+    sym = '-' if col_delta else '|'
+
+    rows, cols = canvas.getmaxyx()
+    max_row, max_col = rows - 1, cols - 1
+
+    curses.beep()
+
+    while 0 < row < max_row and 0 < col < max_col:
+        for obstacle in OBSTACLES:
+            is_collision = obstacle.has_collision(round(row), round(col))
+            if is_collision:
+                return
+
+        canvas.addstr(round(row), round(col), sym)
+        await asyncio.sleep(0)
+        canvas.addstr(round(row), round(col), ' ')
+        await asyncio.sleep(0)
+        row += row_delta
+        col += col_delta
