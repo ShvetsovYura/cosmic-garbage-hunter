@@ -161,9 +161,15 @@ async def move_ship(canvas: window) -> None:
     row_speed = 0.0
     max_rows, max_cols = canvas.getmaxyx()
     while True:
-        row_direction, col_direction, is_space = read_controls(canvas)
         if not CURRENT_SHIP_FRAME:
             continue
+        fig_rows, fig_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
+        for obstacle in OBSTACLES:
+            if obstacle.has_collision(round(SHIP_ROW), round(SHIP_COL), fig_rows, fig_cols):
+                COROS.append(show_gameover(canvas))
+                return
+
+        row_direction, col_direction, is_space = read_controls(canvas)
         _, ship_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
             COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
@@ -183,6 +189,15 @@ async def move_ship(canvas: window) -> None:
         prev_frame = CURRENT_SHIP_FRAME
         await asyncio.sleep(0)
         curses_tools.draw_frame(canvas, SHIP_ROW, SHIP_COL, prev_frame, negative=True)
+
+
+# TODO: Заменить надпись на ASCII текст
+async def show_gameover(canvas: window) -> None:
+    text = 'game over'
+    while True:
+        max_rows, max_cols = canvas.getmaxyx()
+        canvas.addstr(max_rows // 2, max_cols // 2 - len(text) // 2 - 1, text)
+        await asyncio.sleep(0)
 
 
 def draw(canvas: window) -> None:
