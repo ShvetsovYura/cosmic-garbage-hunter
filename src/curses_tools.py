@@ -37,3 +37,12 @@ def draw_frame(
 
             symbol = symbol if not negative else ' '
             canvas.addch(row, column, symbol)
+
+
+def get_frame_size(text: str) -> tuple[int, int]:
+    """Calculate size of multiline text fragment, return pair — number of rows and colums."""
+
+    lines = text.splitlines()
+    rows = len(lines)
+    columns = max([len(line) for line in lines])  # pylint:disable=R1728
+    return rows, columns
