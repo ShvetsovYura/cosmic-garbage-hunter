@@ -6,6 +6,7 @@ from curses import window
 from pathlib import Path
 from random import choice, randint
 from typing import Any, Coroutine, Final
+import uuid
 from src import curses_tools, obstacles
 from src import physics, utils
 from src.debug_messages import print_ship_info
@@ -36,6 +37,7 @@ SHIP_COL: float = 0
 
 STEP_DELTA: Final[float] = 1.6
 OBSTACLES: list[obstacles.Obstacle] = []
+OBSTACLES_IN_LAST_COLLISIONS: list[obstacles.Obstacle] = []
 
 
 async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
@@ -49,10 +51,15 @@ async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: fl
 
     fig_rows, fig_cols = get_frame_size(garbage_frame)
 
-    obs = obstacles.Obstacle(int(row), int(column), fig_rows, fig_cols)
+    obs = obstacles.Obstacle(int(row), int(column), fig_rows, fig_cols, uid=uuid.uuid4())
     OBSTACLES.append(obs)
 
     while row < rows_number:
+        for obstacle in OBSTACLES_IN_LAST_COLLISIONS:
+            if obstacle.uid == obs.uid:
+                OBSTACLES.remove(obs)
+                return
+
         curses_tools.draw_frame(canvas, row, column, garbage_frame)
         obs.row = int(row)
         await asyncio.sleep(0)
@@ -245,6 +252,7 @@ async def fire(
         for obstacle in OBSTACLES:
             is_collision = obstacle.has_collision(round(row), round(col))
             if is_collision:
+                OBSTACLES_IN_LAST_COLLISIONS.append(obstacle)
                 return
 
         canvas.addstr(round(row), round(col), sym)
