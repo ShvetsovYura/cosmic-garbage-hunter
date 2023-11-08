@@ -23,6 +23,7 @@ base_path = Path(__file__).parent.resolve()
 SPRITES: dict[str, dict[str, Any]] = {
     'ship': {'path': base_path.joinpath('sprites/spacesheep'), 'sprites': {}},
     'garbage': {'path': base_path.joinpath('sprites/garbage'), 'sprites': {}},
+    'gameover': {'path': base_path.joinpath('sprites/gameover'), 'sprites': {}},
 }
 
 CURRENT_SHIP_FRAME: str | None = None
@@ -161,9 +162,15 @@ async def move_ship(canvas: window) -> None:
     row_speed = 0.0
     max_rows, max_cols = canvas.getmaxyx()
     while True:
-        row_direction, col_direction, is_space = read_controls(canvas)
         if not CURRENT_SHIP_FRAME:
             continue
+        fig_rows, fig_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
+        for obstacle in OBSTACLES:
+            if obstacle.has_collision(round(SHIP_ROW), round(SHIP_COL), fig_rows, fig_cols):
+                COROS.append(show_gameover(canvas))
+                return
+
+        row_direction, col_direction, is_space = read_controls(canvas)
         _, ship_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
             COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
@@ -183,6 +190,18 @@ async def move_ship(canvas: window) -> None:
         prev_frame = CURRENT_SHIP_FRAME
         await asyncio.sleep(0)
         curses_tools.draw_frame(canvas, SHIP_ROW, SHIP_COL, prev_frame, negative=True)
+
+
+async def show_gameover(canvas: window) -> None:
+    text = SPRITES['gameover']['sprites']['gameover']
+    while True:
+        max_rows, max_cols = canvas.getmaxyx()
+        text_row_position: int = max_rows // 2 - len(text.split('\n')) // 2
+        text_col_position: int = (max_cols // 2) - (len(text.split('\n', maxsplit=1)[0]) // 2)
+
+        curses_tools.draw_frame(canvas, text_row_position, text_col_position, text)
+
+        await asyncio.sleep(0)
 
 
 def draw(canvas: window) -> None:
