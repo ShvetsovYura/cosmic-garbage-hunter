@@ -10,6 +10,7 @@ import uuid
 from src import curses_tools, obstacles
 from src import physics, utils
 from src.debug_messages import print_ship_info
+from src.explosion import explode
 
 STAR_SYMBOLS: Final[list[str]] = ['+', '*', '.', ':']
 STARS: Final[int] = 400
@@ -49,7 +50,7 @@ async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: fl
 
     row: float = 0
 
-    fig_rows, fig_cols = get_frame_size(garbage_frame)
+    fig_rows, fig_cols = curses_tools.get_frame_size(garbage_frame)
 
     obs = obstacles.Obstacle(int(row), int(column), fig_rows, fig_cols, uid=uuid.uuid4())
     OBSTACLES.append(obs)
@@ -58,6 +59,7 @@ async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: fl
         for obstacle in OBSTACLES_IN_LAST_COLLISIONS:
             if obstacle.uid == obs.uid:
                 OBSTACLES.remove(obs)
+                await explode(canvas, round(row) + (fig_rows // 2) - 1, round(column) + (fig_cols // 2) - 1)
                 return
 
         curses_tools.draw_frame(canvas, row, column, garbage_frame)
@@ -128,7 +130,7 @@ async def fill_orbit_with_garbage(canvas: window) -> None:
     while True:
         fig = get_random_garbage()
         _, max_cols = canvas.getmaxyx()
-        _, fig_cols = get_frame_size(fig)
+        _, fig_cols = curses_tools.get_frame_size(fig)
         col_position = randint(0, max_cols - fig_cols)
         COROS.append(fly_garbage(canvas, col_position, fig))
         await utils.delay(randint(1, 30))
@@ -149,15 +151,6 @@ def get_col(max_: int) -> int:
     return randint(0, max_ - 1)
 
 
-def get_frame_size(text: str) -> tuple[int, int]:
-    """Calculate size of multiline text fragment, return pair — number of rows and colums."""
-
-    lines = text.splitlines()
-    rows = len(lines)
-    columns = max([len(line) for line in lines])  # pylint:disable=R1728
-    return rows, columns
-
-
 def new_position(max_pos: int, frame_size: int, cur_pos: float, delta: float) -> float:
     return max(0.0, min(max_pos - frame_size, cur_pos + delta))
 
@@ -171,11 +164,11 @@ async def move_ship(canvas: window) -> None:
         row_direction, col_direction, is_space = read_controls(canvas)
         if not CURRENT_SHIP_FRAME:
             continue
-        _, ship_cols = get_frame_size(CURRENT_SHIP_FRAME)
+        _, ship_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
             COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
 
-        frame_rows, frame_cols = get_frame_size(CURRENT_SHIP_FRAME)
+        frame_rows, frame_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
 
         row_speed, col_speed = physics.update_speed(
             row_speed, col_speed, row_direction, col_direction  # type: ignore[arg-type]
@@ -202,10 +195,10 @@ def draw(canvas: window) -> None:
 
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
-    COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
+    # COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
     COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
-    COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
+    # COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
 
     while True:
         for coro in COROS.copy():
