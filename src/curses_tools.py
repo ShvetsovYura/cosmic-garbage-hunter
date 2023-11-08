@@ -1,6 +1,4 @@
-import asyncio
 from curses import window
-import curses
 
 
 def draw_frame(
@@ -39,35 +37,3 @@ def draw_frame(
 
             symbol = symbol if not negative else ' '
             canvas.addch(row, column, symbol)
-
-
-async def fire(
-    canvas: window, start_row: float, start_col: float, row_delta: float = -0.9, col_delta: float = 0.0
-) -> None:
-    row, col = start_row, start_col
-    canvas.addstr(round(row), round(col), '*')
-    await asyncio.sleep(0)
-
-    canvas.addstr(round(row), round(col), 'O')
-    await asyncio.sleep(0)
-
-    canvas.addstr(round(row), round(col), ' ')
-    await asyncio.sleep(0)
-
-    row += row_delta
-    col += col_delta
-
-    sym = '-' if col_delta else '|'
-
-    rows, cols = canvas.getmaxyx()
-    max_row, max_col = rows - 1, cols - 1
-
-    curses.beep()
-
-    while 0 < row < max_row and 0 < col < max_col:
-        canvas.addstr(round(row), round(col), sym)
-        await asyncio.sleep(0)
-        canvas.addstr(round(row), round(col), ' ')
-        await asyncio.sleep(0)
-        row += row_delta
-        col += col_delta
