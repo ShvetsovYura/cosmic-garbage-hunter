@@ -6,7 +6,7 @@ from curses import window
 from pathlib import Path
 from random import choice, randint
 from typing import Any, Coroutine, Final
-
+from src import curses_tools, obstacles
 from src import physics, utils
 from src.debug_messages import print_ship_info
 
@@ -36,6 +36,8 @@ SHIP_COL: float = 0
 
 STEP_DELTA: Final[float] = 1.6
 
+OBSTACLES: list[Any] = []
+
 
 async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
     """Animate garbage, flying from top to bottom. Сolumn position will stay same, as specified on start."""
@@ -46,10 +48,16 @@ async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: fl
 
     row: float = 0
 
+    fig_rows, fig_cols = get_frame_size(garbage_frame)
+
+    obs = obstacles.Obstacle(int(row), int(column), fig_rows, fig_cols)
+    OBSTACLES.append(obs)
+
     while row < rows_number:
-        draw_frame(canvas, row, column, garbage_frame)
+        curses_tools.draw_frame(canvas, row, column, garbage_frame)
+        obs.row = int(row)
         await asyncio.sleep(0)
-        draw_frame(canvas, row, column, garbage_frame, negative=True)
+        curses_tools.draw_frame(canvas, row, column, garbage_frame, negative=True)
         row += speed
 
 
@@ -120,81 +128,11 @@ async def fill_orbit_with_garbage(canvas: window) -> None:
         await utils.delay(randint(1, 30))
 
 
-def draw_frame(
-    canvas: window,
-    start_row: float,
-    start_col: float,
-    text: str,
-    negative: bool = False,
-) -> None:
-    '''Draw multiline text fragment on canvas, erase text instead of drawing if negative=True is specified.'''
-
-    rows_number, columns_number = canvas.getmaxyx()
-
-    for row, line in enumerate(text.splitlines(), round(start_row)):
-        if row < 0:
-            continue
-
-        if row >= rows_number:
-            break
-
-        for column, symbol in enumerate(line, round(start_col)):
-            if column < 0:
-                continue
-
-            if column >= columns_number:
-                break
-
-            if symbol == ' ':
-                continue
-
-            # Check that current position it is not in a lower right corner of the window
-            # Curses will raise exception in that case. Don`t ask why…
-            # https://docs.python.org/3/library/curses.html#curses.window.addch
-            if row == rows_number - 1 and column == columns_number - 1:
-                continue
-
-            symbol = symbol if not negative else ' '
-            canvas.addch(row, column, symbol)
-
-
 async def animate_spaceship() -> None:
     global CURRENT_SHIP_FRAME
     for frame in itertools.cycle(SPRITES['ship']['sprites'].values()):
         CURRENT_SHIP_FRAME = frame
         await utils.delay(2)
-
-
-async def fire(
-    canvas: window, start_row: float, start_col: float, row_delta: float = -0.9, col_delta: float = 0.0
-) -> None:
-    row, col = start_row, start_col
-    canvas.addstr(round(row), round(col), '*')
-    await asyncio.sleep(0)
-
-    canvas.addstr(round(row), round(col), 'O')
-    await asyncio.sleep(0)
-
-    canvas.addstr(round(row), round(col), ' ')
-    await asyncio.sleep(0)
-
-    row += row_delta
-    col += col_delta
-
-    sym = '-' if col_delta else '|'
-
-    rows, cols = canvas.getmaxyx()
-    max_row, max_col = rows - 1, cols - 1
-
-    curses.beep()
-
-    while 0 < row < max_row and 0 < col < max_col:
-        canvas.addstr(round(row), round(col), sym)
-        await asyncio.sleep(0)
-        canvas.addstr(round(row), round(col), ' ')
-        await asyncio.sleep(0)
-        row += row_delta
-        col += col_delta
 
 
 def get_row(max_: int) -> int:
@@ -229,7 +167,7 @@ async def move_ship(canvas: window) -> None:
             continue
         _, ship_cols = get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
-            COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
+            COROS.append(curses_tools.fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
 
         frame_rows, frame_cols = get_frame_size(CURRENT_SHIP_FRAME)
 
@@ -242,10 +180,10 @@ async def move_ship(canvas: window) -> None:
 
         print_ship_info(canvas, SHIP_ROW, SHIP_COL, row_speed, col_speed, STEP_DELTA)
 
-        draw_frame(canvas, SHIP_ROW, SHIP_COL, CURRENT_SHIP_FRAME)
+        curses_tools.draw_frame(canvas, SHIP_ROW, SHIP_COL, CURRENT_SHIP_FRAME)
         prev_frame = CURRENT_SHIP_FRAME
         await asyncio.sleep(0)
-        draw_frame(canvas, SHIP_ROW, SHIP_COL, prev_frame, negative=True)
+        curses_tools.draw_frame(canvas, SHIP_ROW, SHIP_COL, prev_frame, negative=True)
 
 
 def draw(canvas: window) -> None:
@@ -258,9 +196,10 @@ def draw(canvas: window) -> None:
 
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
-    COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
+    COROS.append(curses_tools.fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
     COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
+    COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
 
     while True:
         for coro in COROS.copy():
