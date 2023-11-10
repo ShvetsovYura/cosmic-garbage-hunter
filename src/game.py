@@ -2,13 +2,13 @@ import asyncio
 import curses
 import itertools
 import time
+import uuid
 from curses import window
 from pathlib import Path
 from random import choice, randint
-from typing import Any, Coroutine, Final
-import uuid
-from src import curses_tools, obstacles
-from src import physics, utils
+from typing import Any, Coroutine, Final, Optional
+
+from src import curses_tools, obstacles, physics, utils
 from src.debug_messages import print_ship_info
 from src.explosion import explode
 
@@ -39,6 +39,34 @@ SHIP_COL: float = 0
 STEP_DELTA: Final[float] = 1.6
 OBSTACLES: list[obstacles.Obstacle] = []
 OBSTACLES_IN_LAST_COLLISIONS: list[obstacles.Obstacle] = []
+YEAR: int = 1951
+
+PERIODS: Final[dict[tuple[int, int], Optional[int]]] = {
+    (0, 1961): None,
+    (1961, 1969): 20,
+    (1969, 1981): 14,
+    (1981, 1995): 10,
+    (1995, 2010): 8,
+    (2010, 2020): 6,
+    (2020, 9999): 2,
+}
+
+
+def get_garbage_delay_tics(year: int) -> Optional[int]:
+    result: Optional[int] = None
+    for (start, end), value in PERIODS.items():
+        if start <= year < end:
+            result = value
+            break
+
+    return result
+
+
+async def change_year() -> None:
+    global YEAR
+    while True:
+        await utils.delay(15)
+        YEAR += 1
 
 
 async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
@@ -207,12 +235,13 @@ def draw(canvas: window) -> None:
     canvas.nodelay(True)  # неблокриующий ражим
     COROS = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
     SHIP_ROW, SHIP_COL = curses.LINES // 2, curses.COLS // 2
-
+    # info_win = canvas.derwin(10, 10, 20, 0)
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
     # COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
     COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
+    COROS.append(change_year())
     # COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
 
     while True:
@@ -223,6 +252,7 @@ def draw(canvas: window) -> None:
                 COROS.remove(coro)
         _, columns_number = canvas.getmaxyx()
         canvas.addstr(0, columns_number - 10, f'coros: {len(COROS)}')
+        canvas.addstr(1, columns_number - 10, f'year: {YEAR}')
         canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
