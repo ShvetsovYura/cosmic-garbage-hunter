@@ -23,6 +23,7 @@ base_path = Path(__file__).parent.resolve()
 SPRITES: dict[str, dict[str, Any]] = {
     'ship': {'path': base_path.joinpath('sprites/spacesheep'), 'sprites': {}},
     'garbage': {'path': base_path.joinpath('sprites/garbage'), 'sprites': {}},
+    'gameover': {'path': base_path.joinpath('sprites/gameover'), 'sprites': {}},
 }
 
 CURRENT_SHIP_FRAME: str | None = None
@@ -227,12 +228,15 @@ async def move_ship(canvas: window) -> None:
         curses_tools.draw_frame(canvas, SHIP_ROW, SHIP_COL, prev_frame, negative=True)
 
 
-# TODO: Заменить надпись на ASCII текст
 async def show_gameover(canvas: window) -> None:
-    text = 'game over'
+    text = SPRITES['gameover']['sprites']['gameover']
     while True:
         max_rows, max_cols = canvas.getmaxyx()
-        canvas.addstr(max_rows // 2, max_cols // 2 - len(text) // 2 - 1, text)
+        text_row_position: int = max_rows // 2 - len(text.split('\n')) // 2
+        text_col_position: int = (max_cols // 2) - (len(text.split('\n', maxsplit=1)[0]) // 2)
+
+        curses_tools.draw_frame(canvas, text_row_position, text_col_position, text)
+
         await asyncio.sleep(0)
 
 
