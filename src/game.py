@@ -243,7 +243,9 @@ def draw(canvas: window) -> None:
     canvas.nodelay(True)  # неблокриующий ражим
     COROS = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
     SHIP_ROW, SHIP_COL = curses.LINES // 2, curses.COLS // 2
-    # info_win = canvas.derwin(10, 10, 20, 0)
+    max_rows, _ = canvas.getmaxyx()
+    info_table = canvas.derwin(5, 15, max_rows - 5, 0)
+
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
     COROS.append(move_ship(canvas))
@@ -256,10 +258,12 @@ def draw(canvas: window) -> None:
                 coro.send(None)
             except StopIteration:
                 COROS.remove(coro)
-        _, columns_number = canvas.getmaxyx()
-        canvas.addstr(0, columns_number - 15, f'coros: {len(COROS)}')
-        canvas.addstr(1, columns_number - 15, f'year: {YEAR}')
-        canvas.addstr(2, columns_number - 15, f'speed: {get_garbage_delay_tics(YEAR)}')
+
+        info_table.addstr(1, 1, f'coros: {len(COROS)}')
+        info_table.addstr(2, 1, f'year: {YEAR}')
+        info_table.addstr(3, 1, f'speed: {get_garbage_delay_tics(YEAR)}')
+        info_table.box()
+        info_table.refresh()
         canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
