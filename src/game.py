@@ -153,6 +153,7 @@ def get_random_garbage() -> str:
 
 
 async def fill_orbit_with_garbage(canvas: window) -> None:
+    # global YEAR
     # TODO: Сделать так, чтобы при большом количестве объектов
     # они не накладывались друг на друга
     while True:
@@ -160,8 +161,13 @@ async def fill_orbit_with_garbage(canvas: window) -> None:
         _, max_cols = canvas.getmaxyx()
         _, fig_cols = curses_tools.get_frame_size(fig)
         col_position = randint(0, max_cols - fig_cols)
-        COROS.append(fly_garbage(canvas, col_position, fig))
-        await utils.delay(randint(1, 30))
+        delay_garbage = get_garbage_delay_tics(YEAR)
+        if delay_garbage:
+            await utils.delay(delay_garbage)
+            COROS.append(fly_garbage(canvas, col_position, fig))
+        else:
+            # TODO: проверить, чтобы не проскочить год и поймать багули
+            await utils.delay(randint(1, 30))
 
 
 async def animate_spaceship() -> None:
@@ -238,9 +244,7 @@ def draw(canvas: window) -> None:
     # info_win = canvas.derwin(10, 10, 20, 0)
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
-    # COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
-    COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
     COROS.append(change_year())
     # COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
 
@@ -251,8 +255,9 @@ def draw(canvas: window) -> None:
             except StopIteration:
                 COROS.remove(coro)
         _, columns_number = canvas.getmaxyx()
-        canvas.addstr(0, columns_number - 10, f'coros: {len(COROS)}')
-        canvas.addstr(1, columns_number - 10, f'year: {YEAR}')
+        canvas.addstr(0, columns_number - 15, f'coros: {len(COROS)}')
+        canvas.addstr(1, columns_number - 15, f'year: {YEAR}')
+        canvas.addstr(2, columns_number - 15, f'speed: {get_garbage_delay_tics(YEAR)}')
         canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
