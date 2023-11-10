@@ -2,13 +2,13 @@ import asyncio
 import curses
 import itertools
 import time
+import uuid
 from curses import window
 from pathlib import Path
 from random import choice, randint
-from typing import Any, Coroutine, Final
-import uuid
-from src import curses_tools, obstacles
-from src import physics, utils
+from typing import Any, Coroutine, Final, Optional
+
+from src import curses_tools, obstacles, physics, utils
 from src.debug_messages import print_ship_info
 from src.explosion import explode
 
@@ -40,6 +40,35 @@ SHIP_COL: float = 0
 STEP_DELTA: Final[float] = 1.6
 OBSTACLES: list[obstacles.Obstacle] = []
 OBSTACLES_IN_LAST_COLLISIONS: list[obstacles.Obstacle] = []
+YEAR: int = 1951
+YEAR_WITH_GUN: Final[int] = 2020
+
+PERIODS: Final[dict[tuple[int, int], Optional[int]]] = {
+    (0, 1961): None,
+    (1961, 1969): 20,
+    (1969, 1981): 14,
+    (1981, 1995): 10,
+    (1995, 2010): 8,
+    (2010, 2020): 6,
+    (2020, 9999): 2,
+}
+
+
+def get_garbage_delay_tics(year: int) -> Optional[int]:
+    result: Optional[int] = None
+    for (start, end), value in PERIODS.items():
+        if start <= year < end:
+            result = value
+            break
+
+    return result
+
+
+async def change_year() -> None:
+    global YEAR
+    while True:
+        await utils.delay(15)
+        YEAR += 1
 
 
 async def fly_garbage(canvas: window, column: int, garbage_frame: str, speed: float = 0.5) -> None:
@@ -126,6 +155,7 @@ def get_random_garbage() -> str:
 
 
 async def fill_orbit_with_garbage(canvas: window) -> None:
+    # global YEAR
     # TODO: Сделать так, чтобы при большом количестве объектов
     # они не накладывались друг на друга
     while True:
@@ -133,8 +163,13 @@ async def fill_orbit_with_garbage(canvas: window) -> None:
         _, max_cols = canvas.getmaxyx()
         _, fig_cols = curses_tools.get_frame_size(fig)
         col_position = randint(0, max_cols - fig_cols)
-        COROS.append(fly_garbage(canvas, col_position, fig))
-        await utils.delay(randint(1, 30))
+        delay_garbage = get_garbage_delay_tics(YEAR)
+        if delay_garbage:
+            await utils.delay(delay_garbage)
+            COROS.append(fly_garbage(canvas, col_position, fig))
+        else:
+            # TODO: проверить, чтобы не проскочить год и поймать багули
+            await utils.delay(randint(1, 30))
 
 
 async def animate_spaceship() -> None:
@@ -173,7 +208,8 @@ async def move_ship(canvas: window) -> None:
         row_direction, col_direction, is_space = read_controls(canvas)
         _, ship_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
-            COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
+            if YEAR >= YEAR_WITH_GUN:
+                COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
 
         frame_rows, frame_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
 
@@ -211,12 +247,13 @@ def draw(canvas: window) -> None:
     canvas.nodelay(True)  # неблокриующий ражим
     COROS = [blink(canvas, get_row(curses.LINES), get_col(curses.COLS), choice(STAR_SYMBOLS)) for _ in range(STARS)]
     SHIP_ROW, SHIP_COL = curses.LINES // 2, curses.COLS // 2
+    max_rows, _ = canvas.getmaxyx()
+    info_table = canvas.derwin(5, 15, max_rows - 5, 0)
 
     COROS.append(fill_orbit_with_garbage(canvas))
     COROS.append(animate_spaceship())
-    # COROS.append(fire(canvas, curses.LINES // 2, curses.COLS // 2))
     COROS.append(move_ship(canvas))
-    COROS.append(fly_garbage(canvas, 10, SPRITES['garbage']['sprites']['duck']))
+    COROS.append(change_year())
     # COROS.append(obstacles.show_obstacles(canvas, OBSTACLES))
 
     while True:
@@ -225,8 +262,12 @@ def draw(canvas: window) -> None:
                 coro.send(None)
             except StopIteration:
                 COROS.remove(coro)
-        _, columns_number = canvas.getmaxyx()
-        canvas.addstr(0, columns_number - 10, f'coros: {len(COROS)}')
+
+        info_table.addstr(1, 1, f'coros: {len(COROS)}')
+        info_table.addstr(2, 1, f'year: {YEAR}')
+        info_table.addstr(3, 1, f'speed: {get_garbage_delay_tics(YEAR)}')
+        info_table.box()
+        info_table.refresh()
         canvas.refresh()
         time.sleep(TIC_TIMEOUT)
 
