@@ -40,6 +40,7 @@ STEP_DELTA: Final[float] = 1.6
 OBSTACLES: list[obstacles.Obstacle] = []
 OBSTACLES_IN_LAST_COLLISIONS: list[obstacles.Obstacle] = []
 YEAR: int = 1951
+YEAR_WITH_GUN: Final[int] = 2020
 
 PERIODS: Final[dict[tuple[int, int], Optional[int]]] = {
     (0, 1961): None,
@@ -206,7 +207,8 @@ async def move_ship(canvas: window) -> None:
         row_direction, col_direction, is_space = read_controls(canvas)
         _, ship_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
         if is_space:
-            COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
+            if YEAR >= YEAR_WITH_GUN:
+                COROS.append(fire(canvas, SHIP_ROW, SHIP_COL + (ship_cols / 2)))
 
         frame_rows, frame_cols = curses_tools.get_frame_size(CURRENT_SHIP_FRAME)
 
